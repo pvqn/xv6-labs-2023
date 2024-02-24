@@ -1,0 +1,23 @@
+diff --git a/21125052_21125074.patch b/21125052_21125074.patch
+index 3fb6828..e69de29 100644
+--- a/21125052_21125074.patch
++++ b/21125052_21125074.patch
+@@ -1,18 +0,0 @@
+-diff --git a/Makefile b/Makefile
+-index 365c91b..1139c9b 100644
+---- a/Makefile
+-+++ b/Makefile
+-@@ -188,6 +188,13 @@ UPROGS=\
+- 	$U/_grind\
+- 	$U/_wc\
+- 	$U/_zombie\
+-+	$U/_sleep\
+-+	$U/_pingpong\
+-+	$U/_primes\
+-+	$U/_xargs\
+-+	$U/_find\
+-+	$U/_uptime\
+-+	$U/_find.grep\
+- 
+- 
+- 
