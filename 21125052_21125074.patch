@@ -1,28 +1,485 @@
 diff --git a/21125052_21125074.patch b/21125052_21125074.patch
-index da339e4..e69de29 100644
---- a/21125052_21125074.patch
+new file mode 100644
+index 0000000..da339e4
+--- /dev/null
 +++ b/21125052_21125074.patch
-@@ -1,23 +0,0 @@
--diff --git a/21125052_21125074.patch b/21125052_21125074.patch
--index 3fb6828..e69de29 100644
----- a/21125052_21125074.patch
--+++ b/21125052_21125074.patch
--@@ -1,18 +0,0 @@
---diff --git a/Makefile b/Makefile
---index 365c91b..1139c9b 100644
------ a/Makefile
---+++ b/Makefile
---@@ -188,6 +188,13 @@ UPROGS=\
--- 	$U/_grind\
--- 	$U/_wc\
--- 	$U/_zombie\
---+	$U/_sleep\
---+	$U/_pingpong\
---+	$U/_primes\
---+	$U/_xargs\
---+	$U/_find\
---+	$U/_uptime\
---+	$U/_find.grep\
--- 
--- 
--- 
+@@ -0,0 +1,23 @@
++diff --git a/21125052_21125074.patch b/21125052_21125074.patch
++index 3fb6828..e69de29 100644
++--- a/21125052_21125074.patch
+++++ b/21125052_21125074.patch
++@@ -1,18 +0,0 @@
++-diff --git a/Makefile b/Makefile
++-index 365c91b..1139c9b 100644
++---- a/Makefile
++-+++ b/Makefile
++-@@ -188,6 +188,13 @@ UPROGS=\
++- 	$U/_grind\
++- 	$U/_wc\
++- 	$U/_zombie\
++-+	$U/_sleep\
++-+	$U/_pingpong\
++-+	$U/_primes\
++-+	$U/_xargs\
++-+	$U/_find\
++-+	$U/_uptime\
++-+	$U/_find.grep\
++- 
++- 
++- 
+diff --git a/Makefile b/Makefile
+index 365c91b..1139c9b 100644
+--- a/Makefile
++++ b/Makefile
+@@ -188,6 +188,13 @@ UPROGS=\
+ 	$U/_grind\
+ 	$U/_wc\
+ 	$U/_zombie\
++	$U/_sleep\
++	$U/_pingpong\
++	$U/_primes\
++	$U/_xargs\
++	$U/_find\
++	$U/_uptime\
++	$U/_find.grep\
+ 
+ 
+ 
+diff --git a/user/find.c b/user/find.c
+new file mode 100644
+index 0000000..847233e
+--- /dev/null
++++ b/user/find.c
+@@ -0,0 +1,96 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++#include "kernel/fs.h"
++
++int match(char* s, char* p) {
++  if (!*p) return !*s;
++  if (*(p + 1) != '*') 
++    return *s == *p || (*p == '.' && *s != '\0') ? match(s + 1, p + 1) : 0; 
++  else 
++    return *s == *p || (*p == '.' && *s != '\0') ? match(s, p + 2) || match(s + 1, p) : match(s, p + 2);
++}
++
++
++void catdir(char *predix, char *name, char *buf)
++{
++  memcpy(buf, predix, strlen(predix));
++  char *p = buf + strlen(predix);
++  *p++ = '/';
++  memcpy(p, name, strlen(name));
++  p += strlen(name);
++  *p++ = 0;
++}
++
++
++void find(int fd, char *dir, char *name) {
++  struct dirent de;
++  
++  while(read(fd, &de, sizeof(de)) == sizeof(de)) {
++    if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
++      continue;
++    struct stat st;
++    char path[512];
++    catdir(dir, de.name, path);
++  
++    if(de.inum == 0)
++        continue;
++    if(stat(path, &st) < 0){
++        printf("find: cannot stat %s\n", path);
++        continue;
++    }
++    if (st.type == T_FILE && match(de.name, name)) {
++      printf("%s\n", path);
++    } else if (st.type == T_DIR) {
++      int subfd;
++      if((subfd = open(path, 0)) < 0){
++        printf("find: cannot open %s\n", path);
++        continue;
++      }
++      find(subfd, path, name);
++    }
++
++  }
++}
++
++
++int main(int argc, char *argv[])
++{
++  if (argc != 3) {
++    fprintf(2, "Usage: find dir name\n");
++    exit(1);
++  }
++
++  char dir[DIRSIZ + 1];
++  char name[DIRSIZ + 1];
++
++  if (strlen(argv[1]) > DIRSIZ || strlen(argv[2]) > DIRSIZ) {
++    fprintf(2, "dir or name too long...\n");
++    exit(1);
++  }
++
++  memcpy(dir, argv[1], strlen(argv[1]));
++  memcpy(name, argv[2], strlen(argv[2]));
++
++  int fd;
++  struct stat st;
++
++  if((fd = open(dir, 0)) < 0){
++    fprintf(2, "find: cannot open %s\n", dir);
++    exit(1);
++  }
++
++  if(fstat(fd, &st) < 0){
++    fprintf(2, "find: cannot stat %s\n", dir);
++    close(fd);
++    exit(1);
++  }
++
++  if (st.type != T_DIR) {
++    printf("%s is not a dir\n", dir);
++  } else {
++    find(fd, dir, name);
++  }
++  
++  exit(0);
++}
+\ No newline at end of file
+diff --git a/user/find.grep.c b/user/find.grep.c
+new file mode 100644
+index 0000000..847233e
+--- /dev/null
++++ b/user/find.grep.c
+@@ -0,0 +1,96 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++#include "kernel/fs.h"
++
++int match(char* s, char* p) {
++  if (!*p) return !*s;
++  if (*(p + 1) != '*') 
++    return *s == *p || (*p == '.' && *s != '\0') ? match(s + 1, p + 1) : 0; 
++  else 
++    return *s == *p || (*p == '.' && *s != '\0') ? match(s, p + 2) || match(s + 1, p) : match(s, p + 2);
++}
++
++
++void catdir(char *predix, char *name, char *buf)
++{
++  memcpy(buf, predix, strlen(predix));
++  char *p = buf + strlen(predix);
++  *p++ = '/';
++  memcpy(p, name, strlen(name));
++  p += strlen(name);
++  *p++ = 0;
++}
++
++
++void find(int fd, char *dir, char *name) {
++  struct dirent de;
++  
++  while(read(fd, &de, sizeof(de)) == sizeof(de)) {
++    if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
++      continue;
++    struct stat st;
++    char path[512];
++    catdir(dir, de.name, path);
++  
++    if(de.inum == 0)
++        continue;
++    if(stat(path, &st) < 0){
++        printf("find: cannot stat %s\n", path);
++        continue;
++    }
++    if (st.type == T_FILE && match(de.name, name)) {
++      printf("%s\n", path);
++    } else if (st.type == T_DIR) {
++      int subfd;
++      if((subfd = open(path, 0)) < 0){
++        printf("find: cannot open %s\n", path);
++        continue;
++      }
++      find(subfd, path, name);
++    }
++
++  }
++}
++
++
++int main(int argc, char *argv[])
++{
++  if (argc != 3) {
++    fprintf(2, "Usage: find dir name\n");
++    exit(1);
++  }
++
++  char dir[DIRSIZ + 1];
++  char name[DIRSIZ + 1];
++
++  if (strlen(argv[1]) > DIRSIZ || strlen(argv[2]) > DIRSIZ) {
++    fprintf(2, "dir or name too long...\n");
++    exit(1);
++  }
++
++  memcpy(dir, argv[1], strlen(argv[1]));
++  memcpy(name, argv[2], strlen(argv[2]));
++
++  int fd;
++  struct stat st;
++
++  if((fd = open(dir, 0)) < 0){
++    fprintf(2, "find: cannot open %s\n", dir);
++    exit(1);
++  }
++
++  if(fstat(fd, &st) < 0){
++    fprintf(2, "find: cannot stat %s\n", dir);
++    close(fd);
++    exit(1);
++  }
++
++  if (st.type != T_DIR) {
++    printf("%s is not a dir\n", dir);
++  } else {
++    find(fd, dir, name);
++  }
++  
++  exit(0);
++}
+\ No newline at end of file
+diff --git a/user/pingpong.c b/user/pingpong.c
+new file mode 100644
+index 0000000..e201edb
+--- /dev/null
++++ b/user/pingpong.c
+@@ -0,0 +1,22 @@
++#include "kernel/types.h"
++#include "user.h"
++#include "kernel/fcntl.h"
++void main()
++{
++    int p[2];
++    char buf[100];
++    pipe(p);
++    int pid=fork();
++    if (pid==0)
++    {
++        write(p[1],"ping",4);
++        printf("%d: received ping \n", getpid());
++    }
++    else 
++    {
++        wait(0);
++        read(p[0], buf,4);
++        printf("%d: received pong \n", getpid());
++    }
++
++}
+\ No newline at end of file
+diff --git a/user/primes.c b/user/primes.c
+new file mode 100644
+index 0000000..18971ec
+--- /dev/null
++++ b/user/primes.c
+@@ -0,0 +1,65 @@
++#include "kernel/types.h"
++#include "user.h"
++#include "kernel/stat.h"
++
++
++void primes(int fd)
++{
++    int num;
++    read(fd,&num,4);
++    printf("prime %d \n", num);
++    int p[2];
++    pipe(p);
++    int t=-1;
++    while (1)
++    {
++        //check end of file or not
++        int n=read(fd,&t,4);
++        if (n<=0) break;
++        if (t%num!=0)
++        {
++            write(p[1],&t,4);
++        }
++    }
++    if (t==-1)
++    {
++        close(p[1]);
++        close(p[0]);
++        close(fd);
++        return;
++    }
++    int pid=fork();
++    if (pid==0)
++    {
++        close(p[1]);
++        close(fd);
++        primes(p[0]);
++        close(p[0]);
++
++    }
++    else 
++    {
++        close(fd);
++        close(p[0]);
++        close(p[1]);
++        wait(0);
++
++    }
++    
++}
++
++int main()
++{
++    int p[2];
++    pipe(p);
++    for (int i=2; i<=35; ++i)
++    {
++        int n=i;
++        write(p[1],&n,4);
++    }
++    close(p[1]);
++    primes(p[0]);
++    close(p[0]);
++
++    exit(1);
++}
+\ No newline at end of file
+diff --git a/user/sleep.c b/user/sleep.c
+new file mode 100644
+index 0000000..b15020c
+--- /dev/null
++++ b/user/sleep.c
+@@ -0,0 +1,14 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user.h"
++
++int main(int argc, char *argv[]) {
++    if (argc < 2) {
++        fprintf(2, "Usage: sleep for a new sec...\n");
++        exit(-1);
++    }
++
++    sleep(atoi(argv[1]));
++
++    exit(0);
++}
+\ No newline at end of file
+diff --git a/user/uptime.c b/user/uptime.c
+new file mode 100644
+index 0000000..7c1ce46
+--- /dev/null
++++ b/user/uptime.c
+@@ -0,0 +1,9 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user.h"
++
++int main() {
++    int uptime_ticks = uptime();
++    printf("Uptime: %d ticks\n", uptime_ticks);
++    exit(0);
++}
+\ No newline at end of file
+diff --git a/user/xargs.c b/user/xargs.c
+new file mode 100644
+index 0000000..1ce0189
+--- /dev/null
++++ b/user/xargs.c
+@@ -0,0 +1,87 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user.h"
++#include "kernel/param.h"
++
++int getcmd(char *buf, int nbuf)
++{
++    memset(buf, 0, nbuf);
++    gets(buf, nbuf);
++    if (buf[0] == 0) // EOF*
++    {
++
++        return -1;
++    }
++
++    return 0;
++}
++
++char whitespace[] = " \t\r\n\v";
++
++int gettoken(char **ps, char *es, char **q, char **eq)
++{
++    char *s;
++    int ret;
++
++    s = *ps;
++    while (s < es && strchr(whitespace, *s))
++        s++;
++    if (q)
++        *q = s;
++    ret = *s;
++    switch (*s)
++    {
++    case 0:
++        break;
++    default:
++        ret = 'a';
++        while (s < es && !strchr(whitespace, *s))
++            s++;
++        break;
++    }
++    if (eq)
++        *eq = s;
++
++    while (s < es && strchr(whitespace, *s))
++        s++;
++    *ps = s;
++    return ret;
++}
++
++int main(int argc, char *argv[])
++{
++    char *xargs[MAXARG];
++    for (int i = 1; i < argc; i++)
++    {
++        // Skip `xargs` cmd name.*
++        xargs[i - 1] = argv[i];
++    }
++
++    static char buf[MAXARG][100];
++    char *q, *eq;
++    int j = argc - 1;
++    int i = 0;
++    // Split each line into array of args.*
++    while (getcmd(buf[i], sizeof(buf[i])) >= 0)
++    {
++        char *s = buf[i];
++        char *es = s + strlen(s);
++        while (gettoken(&s, es, &q, &eq) != 0)
++        {
++            // Set end to 0.*
++            xargs[j] = q;
++            *eq = 0;
++            j++;
++            i++;
++        }
++    }
++
++    int pid = fork();
++    if (pid == 0)
++    {
++        exec(xargs[0], xargs);
++    }
++    wait(0);
++
++    exit(1);
++}
+\ No newline at end of file
